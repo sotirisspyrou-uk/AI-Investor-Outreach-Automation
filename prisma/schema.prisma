@@ -1,0 +1,140 @@
+// prisma/schema.prisma
+// [Version 15-08-2025 15:15:00]
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String     @id @default(cuid())
+  email     String     @unique
+  name      String?
+  image     String?
+  password  String?
+  campaigns Campaign[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  @@map("users")
+}
+
+model Investor {
+  id              String   @id @default(cuid())
+  firstName       String
+  lastName        String
+  email           String?
+  linkedinUrl     String?
+  twitterHandle   String?
+  company         String?
+  title           String?
+  investmentStage String[] // ['pre-seed', 'seed', 'series-a']
+  sectors         String[] // ['fintech', 'healthtech', 'ai']
+  geography       String?
+  enrichmentData  Json?
+  lastEnriched    DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  sequences       OutreachSequence[]
+
+  @@index([company, investmentStage])
+  @@index([sectors])
+  @@map("investors")
+}
+
+model Campaign {
+  id            String             @id @default(cuid())
+  name          String
+  description   String?
+  status        CampaignStatus     @default(DRAFT)
+  targetCount   Int                @default(0)
+  sentCount     Int                @default(0)
+  responseCount Int                @default(0)
+  responseRate  Float              @default(0)
+  userId        String
+  user          User               @relation(fields: [userId], references: [id])
+  sequences     OutreachSequence[]
+  settings      Json? // Campaign configuration
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  @@index([userId, status])
+  @@map("campaigns")
+}
+
+model OutreachSequence {
+  id              String         @id @default(cuid())
+  campaignId      String
+  investorId      String
+  campaign        Campaign       @relation(fields: [campaignId], references: [id])
+  investor        Investor       @relation(fields: [investorId], references: [id])
+  status          SequenceStatus @default(PENDING)
+  primaryPlatform Platform?
+  hooksGenerated  Json? // Array of generated hooks
+  selectedHook    String?
+  currentStep     Int            @default(0)
+  lastContactAt   DateTime?
+  responseReceived Boolean       @default(false)
+  meetingBooked   Boolean        @default(false)
+  messages        Message[]
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@index([campaignId, status])
+  @@index([investorId])
+  @@map("outreach_sequences")
+}
+
+model Message {
+  id              String           @id @default(cuid())
+  sequenceId      String
+  sequence        OutreachSequence @relation(fields: [sequenceId], references: [id])
+  platform        Platform
+  messageType     MessageType
+  subject         String?
+  content         String
+  scheduledFor    DateTime?
+  sentAt          DateTime?
+  deliveredAt     DateTime?
+  openedAt        DateTime?
+  respondedAt     DateTime?
+  responseContent String?
+  sentiment       String? // 'positive', 'neutral', 'negative'
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  @@index([sequenceId, messageType])
+  @@map("messages")
+}
+
+enum CampaignStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  COMPLETED
+  ARCHIVED
+}
+
+enum SequenceStatus {
+  PENDING
+  ACTIVE
+  RESPONDED
+  COMPLETED
+  FAILED
+}
+
+enum Platform {
+  LINKEDIN
+  TWITTER
+  EMAIL
+}
+
+enum MessageType {
+  INITIAL
+  FOLLOW_UP
+  FINAL
+}
